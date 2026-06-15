@@ -11,10 +11,7 @@ datasource db {
   provider = "postgresql"
 }
 
-enum loginType {
-  LOCAL
-  GOOGLE
-}
+
 
 enum tokenType {
   REFRESH_TOKEN
@@ -29,8 +26,7 @@ model User {
   pfp String?
   bio String? 
   password String?
-  googleId String?
-  loginType loginType @default(LOCAL)
+  googleId String? @unique()
   emailVerified Boolean @default(false)
 
   tokens Token[]

@@ -39,7 +39,6 @@ export class UserService {
         email,
         password: hashedPassword,
         name,
-        loginType: 'LOCAL',
       },
       omit: {
         password: true,
@@ -71,6 +70,43 @@ export class UserService {
       },
       data: {
         password: hashedNewPassword,
+      },
+      omit: {
+        password: true,
+      },
+    });
+  }
+  getUserFromGoogleId(googleId: string) {
+    return this.prisma.user.findUnique({
+      where: {
+        googleId,
+      },
+      omit: {
+        password: true,
+      },
+    });
+  }
+  updateUsersGoogleId(userId: string, googleId: string) {
+    return this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        googleId,
+        emailVerified: true,
+      },
+      omit: {
+        password: true,
+      },
+    });
+  }
+  createGoogleUser(name: string, email: string, googleId: string) {
+    return this.prisma.user.create({
+      data: {
+        name,
+        email,
+        googleId,
+        emailVerified: true,
       },
       omit: {
         password: true,

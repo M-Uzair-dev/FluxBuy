@@ -25,11 +25,12 @@ export class EmailProcessor extends WorkerHost {
     name: string;
     email: string;
   }) {
-    await this.emailService.sendVerificationEmail(
-      data.token,
-      data.email,
-      data.name,
-    );
+    // await this.emailService.sendVerificationEmail(
+    //   data.token,
+    //   data.email,
+    //   data.name,
+    // );
+    console.log('Sending Email.');
   }
 
   private async handleResetEmail(data: {
@@ -37,7 +38,8 @@ export class EmailProcessor extends WorkerHost {
     email: string;
     token: string;
   }) {
-    await this.emailService.sendResetEmail(data.name, data.email, data.token);
+    // await this.emailService.sendResetEmail(data.name, data.email, data.token);
+    console.log('Sending Email.');
   }
 
   @OnWorkerEvent('completed')

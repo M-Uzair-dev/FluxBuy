@@ -4,7 +4,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { PrismaModule } from './prisma/prisma.module';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
 import { redisStore } from 'cache-manager-redis-yet';
 import { RedisModule } from './redis/redis.module';
@@ -12,6 +12,10 @@ import { BullModule } from '@nestjs/bullmq';
 import { EmailWorkerModule } from './workers/emailWorkers/email.module';
 import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 
 @Module({
   imports: [
@@ -31,6 +35,13 @@ import { ExpressAdapter } from '@bull-board/express';
     BullModule.forRoot({
       connection: { host: 'localhost', port: 6379 },
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: 100 }],
+      storage: new ThrottlerStorageRedisService({
+        host: 'localhost',
+        port: 6379,
+      }),
+    }),
     EmailWorkerModule,
     PrismaModule,
     AuthModule,
@@ -39,8 +50,9 @@ import { ExpressAdapter } from '@bull-board/express';
       route: '/queues',
       adapter: ExpressAdapter,
     }),
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

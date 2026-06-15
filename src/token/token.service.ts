@@ -1,9 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { Interval } from '@nestjs/schedule';
 
 @Injectable()
 export class TokenService {
@@ -17,7 +22,10 @@ export class TokenService {
     return this.jwt.verify(token);
   }
 
-  async generateTokens(id: string): Promise<{
+  async generateTokens(
+    id: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<{
     accessToken: string;
     refreshToken: string;
   }> {
@@ -42,7 +50,8 @@ export class TokenService {
     const refreshTokenHash = createHash('sha256')
       .update(refreshToken)
       .digest('hex');
-    await this.prisma.token.create({
+
+    await tx.token.create({
       data: {
         tokenHash: refreshTokenHash,
         expiresAt: new Date(
@@ -154,5 +163,54 @@ export class TokenService {
       },
     });
     return tokenRecord.userId;
+  }
+  async deleteAllRefreshTokens(userId: string) {
+    await this.prisma.token.deleteMany({
+      where: {
+        userId,
+        type: 'REFRESH_TOKEN',
+      },
+    });
+  }
+  async rotateTokens(refreshToken: string) {
+    let decoded;
+    try {
+      decoded = await this.jwt.verify(refreshToken);
+    } catch {
+      throw new UnauthorizedException('Invalid Refresh Token! Please Login.');
+    }
+    const hashed = createHash('sha256').update(refreshToken).digest('hex');
+    let tokenRecord = await this.prisma.token.findFirst({
+      where: {
+        tokenHash: hashed,
+        type: 'REFRESH_TOKEN',
+      },
+    });
+    if (!tokenRecord) {
+      await this.deleteAllRefreshTokens(decoded.sub);
+      throw new UnauthorizedException('Invalid Token! Please Login.');
+    }
+    if (tokenRecord.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid Token! Please Login.');
+    }
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.token.delete({
+        where: {
+          id: tokenRecord.id,
+        },
+      });
+      return this.generateTokens(decoded.sub, tx);
+    });
+  }
+
+  @Interval(Number(process.env.TOKEN_CLEANUP_CRON_INTERVAL_MS) || 600000)
+  async cleanTokens() {
+    await this.prisma.token.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
   }
 }
