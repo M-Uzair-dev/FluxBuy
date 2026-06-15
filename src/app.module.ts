@@ -16,6 +16,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { ProductModule } from './product/product.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
       adapter: ExpressAdapter,
     }),
     ScheduleModule.forRoot(),
+    ProductModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

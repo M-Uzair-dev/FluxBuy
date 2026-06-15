@@ -116,6 +116,20 @@ NestJS + Prisma (PostgreSQL) backend called FluxBuy. Learning project — teache
 - `BullModule.forRoot` in AppModule with Redis connection
 - Bull Board UI at `/queues` — registered via `@bull-board/nestjs` + `@bull-board/express`
 
+### Product & Payment — domain phase, in progress
+- Design doc: `docs/superpowers/specs/2026-06-15-drop-purchase-flow-design.md` — Product/Order entities, idempotency (two layers), naive buy-flow (Tx1 reserve stock + create order -> await payment outside any transaction -> Tx2 finalize), "payment limbo"/timeout reconciliation concept (deferred — needs Redis-backed retry/idempotency cache)
+- `PaymentService` (`src/payment/payment.service.ts`) — mock payment, `chargeCard(cardNumber, cvc, expireDate, idempotencyKey)`, 20% random failure rate + auto-fail on expired card, 1-4s delay applied to both success and failure, returns `boolean`
+- **Known bug to fix first thing next session**: `src/payment/payment.module.ts` has `providers: [PaymentModule]` / `exports: [PaymentModule]` — should be `PaymentService`. As written, `PaymentService` isn't actually provided/exported, so OrderModule won't be able to inject it.
+- `ProductService` (`src/product/product.service.ts`):
+  - `addProduct` — validates `dropTime` must be in the future (`BadRequestException` otherwise)
+  - `getProducts` — cursor-based pagination (`take: pageSize+1`, pop last item to compute `hasNextPage`/`nextCursor`), `orderBy: createdAt desc`, includes `user: { name, pfp }`
+  - `getProductById` — includes `user: { name, pfp }`
+  - `editProduct` — ownership check (`ForbiddenException` if not owner), only `name`/`description`/`imageUrl` updatable
+- Routes (`src/product/product.controller.ts`): `POST /product/new` (JwtGuard), `GET /product/` (public, paginated via `GetProductsDto`, `@UseInterceptors(CacheInterceptor)`), `GET /product/:id` (public, `@UseInterceptors(CacheInterceptor)`), `PATCH /product/:id` (JwtGuard, `EditProductDto`)
+- DTOs reviewed/fixed: `CreateProductDto` (`@Type(() => Date)` + `@IsDate()` on `dropTime`), `GetProductsDto` (`@Type(() => Number)` + `@IsNumber()` on `limit`), `EditProductDto` (`@IsUrl()` on `imageUrl`, `@IsNotEmpty()` on `name`)
+- **Product immutability rule** (agreed): `price`, `quantity`, `dropTime` are frozen forever at creation — never editable. `name`/`description`/`imageUrl` are always editable, drop status irrelevant. `GET /product/` lists ALL products regardless of drop status; frontend shows a countdown timer for not-yet-dropped products.
+- Caching: `@UseInterceptors(CacheInterceptor)` from `@nestjs/cache-manager` currently sits on both `GET /product/` and `GET /product/:id`, backed by the global `CacheModule.registerAsync` (Redis store, `ttl: 60000`) in `app.module.ts`. **To be replaced** — see Next Session Plan.
+
 ## Prisma Schema
 
 ### User model
